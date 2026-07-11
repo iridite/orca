@@ -7,6 +7,8 @@ const EMPTY_TERMINAL_LAYOUTS_BY_TAB_ID: AppState['terminalLayoutsByTabId'] = {}
 const EMPTY_RUNTIME_PANE_TITLES_BY_TAB_ID: AppState['runtimePaneTitlesByTabId'] = {}
 const EMPTY_REPOS: AppState['repos'] = []
 const EMPTY_WORKTREES: ReturnType<typeof getAllWorktreesFromState> = []
+const EMPTY_BROWSER_TABS_BY_WORKTREE: AppState['browserTabsByWorktree'] = {}
+const EMPTY_UNIFIED_TABS_BY_WORKTREE: AppState['unifiedTabsByWorktree'] = {}
 
 export function getResourceUsageTabsByWorktree(
   state: Pick<AppState, 'tabsByWorktree'>,
@@ -48,4 +50,18 @@ export function getResourceUsageAllWorktrees(
   open: boolean
 ): ReturnType<typeof getAllWorktreesFromState> {
   return open ? getAllWorktreesFromState(state) : EMPTY_WORKTREES
+}
+
+export function getResourceUsageBrowserTabsByWorktree(
+  state: Pick<AppState, 'browserTabsByWorktree'>,
+  open: boolean
+): AppState['browserTabsByWorktree'] {
+  return open ? state.browserTabsByWorktree : EMPTY_BROWSER_TABS_BY_WORKTREE
+}
+
+export function getResourceUsageUnifiedTabsByWorktree(
+  state: Pick<AppState, 'unifiedTabsByWorktree'>,
+  open: boolean
+): AppState['unifiedTabsByWorktree'] {
+  return open ? state.unifiedTabsByWorktree : EMPTY_UNIFIED_TABS_BY_WORKTREE
 }

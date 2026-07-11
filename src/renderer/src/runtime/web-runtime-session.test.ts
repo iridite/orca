@@ -870,6 +870,39 @@ describe('web runtime session tab actions', () => {
     })
     expect(mocks.applyFreshWebSessionTabsSnapshot).toHaveBeenCalled()
   })
+
+  it('captures host-id mapping state before an optimistic mirror prune', async () => {
+    const prePruneState = {
+      settings: { activeRuntimeEnvironmentId: ENVIRONMENT_ID },
+      unifiedTabsByWorktree: { [WORKTREE_ID]: [{ id: 'local-browser-unified' }] }
+    }
+    mocks.getState.mockReturnValueOnce(prePruneState).mockReturnValue({
+      settings: { activeRuntimeEnvironmentId: ENVIRONMENT_ID },
+      unifiedTabsByWorktree: {}
+    })
+    mocks.resolveHostSessionTabIdForWebSessionTab.mockImplementation((state) =>
+      state === prePruneState ? 'host-browser-unified' : null
+    )
+    const runtimeCall = vi.fn().mockResolvedValue({ id: 'close', ok: true, result: {} })
+    vi.stubGlobal('window', {
+      api: { runtimeEnvironments: { call: runtimeCall } }
+    })
+
+    await expect(
+      closeWebRuntimeSessionTab({
+        worktreeId: WORKTREE_ID,
+        tabId: 'local-browser-unified'
+      })
+    ).resolves.toBe(true)
+
+    expect(runtimeCall).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        method: 'session.tabs.close',
+        params: expect.objectContaining({ tabId: 'host-browser-unified' })
+      })
+    )
+  })
 })
 
 describe('splitWebRuntimeTerminal', () => {

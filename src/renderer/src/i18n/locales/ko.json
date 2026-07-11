@@ -27,12 +27,35 @@
         "kimiToggleDescription": "활성 워크스페이스의 Kimi 구독 사용량을 표시합니다.",
         "minimaxToggleDescription": "활성 워크스페이스의 MiniMax 구독 사용량을 표시합니다.",
         "sshToggleDescription": "사용 가능한 SSH 및 원격 Orca 호스트가 있으면 표시합니다.",
-        "resourceUsageToggleDescription": "리소스 관리자를 표시합니다. 클릭하면 CPU, 메모리, 세션, 데몬 제어, 워크스페이스 디스크 스캔을 볼 수 있습니다.",
+        "resourceUsageToggleDescription": "리소스 관리자를 표시합니다. 클릭하면 CPU, 메모리, 터미널 세션, 브라우저, 데몬 제어 및 워크스페이스 디스크 검사를 볼 수 있습니다.",
         "portsToggleDescription": "라이브 워크스페이스 포트를 표시합니다. 워크스페이스 범위 포트 및 외부 수신기를 보려면 클릭하세요.",
         "antigravityToggleDescription": "활성 워크스페이스에 대한 Antigravity 구독 사용량을 표시합니다.",
         "grokToggleDescription": "Grok CLI로 로그인한 경우 Grok 구독 크레딧 사용량을 표시합니다."
       }
     }
+  },
+  "resourceManager": {
+    "name": "리소스 관리자",
+    "terminalCount": {
+      "one": "터미널 세션 {{count}}개",
+      "other": "터미널 세션 {{count}}개"
+    },
+    "browserCount": {
+      "one": "브라우저 {{count}}개",
+      "other": "브라우저 {{count}}개"
+    },
+    "tooltip": {
+      "summary": "리소스 관리자 - {{memory}} - {{terminals}} - {{browsers}}",
+      "grouped": "터미널 세션과 브라우저는 워크스페이스별로 그룹화됩니다.",
+      "empty": "아직 터미널 세션이나 브라우저가 없습니다."
+    },
+    "spaceScanReady": "공간 검사 준비됨",
+    "memoryUnavailable": "메모리 정보 없음",
+    "newTab": "새 탭",
+    "browserFallback": "브라우저",
+    "openBrowser": "브라우저 {{value0}} 열기",
+    "closeBrowser": "브라우저 {{value0}} 닫기",
+    "closeFailed": "원격 호스트에서 브라우저를 닫을 수 없습니다."
   },
   "menu": {
     "checkForUpdates": "업데이트 확인...",

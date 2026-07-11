@@ -64,6 +64,7 @@ function makeWorktree(overrides: Partial<UnifiedWorktreeRow>): UnifiedWorktreeRo
     hasLocalSamples: true,
     isRemote: false,
     sessions: [],
+    browsers: [],
     ...overrides
   }
 }
@@ -79,7 +80,10 @@ describe('resource manager row presentation', () => {
     container.remove()
   })
 
-  function renderWorktreeRow(worktree: UnifiedWorktreeRow): void {
+  function renderWorktreeRow(
+    worktree: UnifiedWorktreeRow,
+    actions: { activate?: () => void; close?: () => void } = {}
+  ): void {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -95,6 +99,8 @@ describe('resource manager row presentation', () => {
           onDelete={() => {}}
           onKillSession={() => {}}
           navigateToTab={() => {}}
+          onActivateBrowser={() => actions.activate?.()}
+          onCloseBrowser={() => actions.close?.()}
         />
       )
     })
@@ -130,5 +136,59 @@ describe('resource manager row presentation', () => {
     )
 
     expect(container.querySelector('button[aria-label="Kill session orphan-a"]')).not.toBeNull()
+  })
+
+  it('shows browser counts and sibling open/close controls', () => {
+    const activate = vi.fn()
+    const close = vi.fn()
+    renderWorktreeRow(
+      makeWorktree({
+        cpu: null,
+        memory: null,
+        browsers: [
+          {
+            workspaceId: 'browser-1',
+            unifiedTabId: 'unified-1',
+            groupId: 'group-1',
+            label: 'Docs',
+            url: 'https://docs.test',
+            isPinned: false
+          },
+          {
+            workspaceId: 'browser-2',
+            unifiedTabId: 'unified-2',
+            groupId: 'group-1',
+            label: 'Preview',
+            url: 'https://preview.test',
+            isPinned: false
+          }
+        ]
+      }),
+      { activate, close }
+    )
+
+    const openButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Open browser Docs"]'
+    )
+    const closeButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Close browser Docs"]'
+    )
+    expect(container.textContent).toContain('Docs')
+    expect(
+      Array.from(container.querySelectorAll('span')).some(
+        (span) => span.textContent?.trim() === '2'
+      )
+    ).toBe(true)
+    expect(container.querySelector('button[aria-label="Collapse workspace"]')).not.toBeNull()
+    expect(openButton).not.toBeNull()
+    expect(closeButton).not.toBeNull()
+    expect(openButton?.contains(closeButton)).toBe(false)
+    expect(closeButton?.closest('button')).toBe(closeButton)
+
+    act(() => closeButton?.click())
+    expect(close).toHaveBeenCalledTimes(1)
+    expect(activate).not.toHaveBeenCalled()
+    act(() => openButton?.click())
+    expect(activate).toHaveBeenCalledTimes(1)
   })
 })

@@ -441,9 +441,13 @@ async function callWebRuntimeSessionTabMethod(
     environmentId?: string | null
   }
 ): Promise<boolean> {
+  // Why: remote browser close callers optimistically prune the local mirror
+  // immediately. Capture the mapping inputs before the first await so a unified
+  // local id can still resolve to its distinct host session-tab id.
+  const resolutionState = useAppStore.getState()
   const environmentId =
     args.environmentId?.trim() ??
-    useAppStore.getState().settings?.activeRuntimeEnvironmentId?.trim() ??
+    resolutionState.settings?.activeRuntimeEnvironmentId?.trim() ??
     null
   if (!environmentId || !isWebRuntimeSessionActive(environmentId)) {
     return false
@@ -461,9 +465,8 @@ async function callWebRuntimeSessionTabMethod(
 
   try {
     const { resolveHostSessionTabIdForWebSessionTab } = await import('./web-session-tabs-sync')
-    const state = useAppStore.getState()
     const hostTabId =
-      resolveHostSessionTabIdForWebSessionTab(state, {
+      resolveHostSessionTabIdForWebSessionTab(resolutionState, {
         environmentId,
         worktreeId: args.worktreeId,
         tabId: args.tabId

@@ -1,4 +1,9 @@
-import type { TerminalLayoutSnapshot, TerminalTab } from '../../../../shared/types'
+import type {
+  BrowserWorkspace,
+  Tab,
+  TerminalLayoutSnapshot,
+  TerminalTab
+} from '../../../../shared/types'
 
 /** `null` === "no local sample" (e.g. SSH PTY); UI renders as em-dash. */
 export type Metric = number | null
@@ -21,6 +26,23 @@ export type UnifiedSessionRow = {
   hasLocalSamples: boolean
 }
 
+export type UnifiedBrowserRow = {
+  workspaceId: string
+  unifiedTabId: string
+  groupId: string
+  label: string
+  url: string
+  isPinned: boolean
+}
+
+export type ResourceBrowserCanonicalWorktree = {
+  worktreeId: string
+  worktreeName: string
+  repoId: string
+  repoName: string
+  isRemote: boolean
+}
+
 export type UnifiedWorktreeRow = {
   worktreeId: string
   worktreeName: string
@@ -33,6 +55,7 @@ export type UnifiedWorktreeRow = {
   /** Why: repo connectionId, not sample presence, drives the remote chip. */
   isRemote: boolean
   sessions: UnifiedSessionRow[]
+  browsers: UnifiedBrowserRow[]
 }
 
 export type UnifiedProjectGroup = {
@@ -62,4 +85,10 @@ export type MergeContext = {
   repoConnectionIdById: Map<string, string | null>
   /** Repo runtime-host scope by repo id (missing == keep row). */
   repoRuntimeScopedById: Map<string, boolean>
+  /** Canonical git-repo worktrees eligible to own Resource Manager browsers. */
+  browserCanonicalWorktreeById: Map<string, ResourceBrowserCanonicalWorktree>
+  /** Open-only renderer browser workspaces. */
+  browserTabsByWorktree: Record<string, BrowserWorkspace[]>
+  /** Open-only unified tabs used to join workspace ownership to rendered tabs. */
+  unifiedTabsByWorktree: Record<string, Tab[]>
 }

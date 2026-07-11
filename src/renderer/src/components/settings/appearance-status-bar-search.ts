@@ -262,7 +262,7 @@ export const getStatusBarToggles = createLocalizedCatalog(
       ],
       toggleDescription: translate(
         'settings.appearance.statusBar.resourceUsageToggleDescription',
-        'Show the Resource Manager. Click it for CPU, memory, sessions, daemon controls, and workspace disk scans.'
+        'Show the Resource Manager. Click it for CPU, memory, terminal sessions, browsers, daemon controls, and workspace disk scans.'
       )
     },
     {

@@ -27,12 +27,35 @@
         "kimiToggleDescription": "Muestra el uso de la suscripción de Kimi para el espacio de trabajo activo.",
         "minimaxToggleDescription": "Muestra el uso de la suscripción de MiniMax para el espacio de trabajo activo.",
         "sshToggleDescription": "Muestra hosts SSH configurados y hosts remotos de Orca cuando haya alguno disponible.",
-        "resourceUsageToggleDescription": "Muestra el Administrador de recursos. Haz clic para ver CPU, memoria, sesiones, controles del servicio en segundo plano y análisis de disco de los espacios de trabajo.",
+        "resourceUsageToggleDescription": "Muestra el Administrador de recursos. Haz clic para ver CPU, memoria, sesiones de terminal, navegadores, controles del servicio en segundo plano y análisis de disco de los espacios de trabajo.",
         "portsToggleDescription": "Muestra los puertos activos de los espacios de trabajo. Haz clic para ver los puertos de cada espacio de trabajo y los puertos externos.",
         "antigravityToggleDescription": "Muestra el uso de suscripción de Antigravity para el espacio de trabajo activo.",
         "grokToggleDescription": "Muestra el uso de créditos de suscripción de Grok cuando has iniciado sesión con Grok CLI."
       }
     }
+  },
+  "resourceManager": {
+    "name": "Administrador de recursos",
+    "terminalCount": {
+      "one": "{{count}} sesión de terminal",
+      "other": "{{count}} sesiones de terminal"
+    },
+    "browserCount": {
+      "one": "{{count}} navegador",
+      "other": "{{count}} navegadores"
+    },
+    "tooltip": {
+      "summary": "Administrador de recursos - {{memory}} - {{terminals}} - {{browsers}}",
+      "grouped": "Las sesiones de terminal y los navegadores se agrupan por espacio de trabajo.",
+      "empty": "Aún no hay sesiones de terminal ni navegadores."
+    },
+    "spaceScanReady": "Análisis de espacio listo",
+    "memoryUnavailable": "memoria no disponible",
+    "newTab": "Nueva pestaña",
+    "browserFallback": "Navegador",
+    "openBrowser": "Abrir navegador {{value0}}",
+    "closeBrowser": "Cerrar navegador {{value0}}",
+    "closeFailed": "No se pudo cerrar el navegador en el host remoto."
   },
   "menu": {
     "checkForUpdates": "Buscar actualizaciones...",

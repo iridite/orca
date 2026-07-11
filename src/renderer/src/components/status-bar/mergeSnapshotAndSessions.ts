@@ -32,6 +32,7 @@ import type {
   UnifiedWorktreeRow
 } from './resource-usage-merge-types'
 import { buildResourceSessionBindingIndex } from './resource-session-bindings'
+import { getEligibleResourceBrowserRows } from './resource-browser-eligibility'
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -136,6 +137,7 @@ export function mergeSnapshotAndSessions(
   ctx: MergeContext
 ): UnifiedProjectGroup[] {
   const repos = new Map<string, UnifiedProjectGroup>()
+  const worktreeRows = new Map<string, UnifiedWorktreeRow>()
   const seenSessionIds = new Set<string>()
   // Why: pre-build O(1) lookup indices once per merge. This includes live
   // ptyIdsByTabId plus deferred-reattach wake hints, so restored inactive
@@ -181,7 +183,16 @@ export function mergeSnapshotAndSessions(
     repo: UnifiedProjectGroup,
     worktreeId: string
   ): UnifiedWorktreeRow | undefined {
-    return repo.worktrees.find((w) => w.worktreeId === worktreeId)
+    return worktreeRows.get(`${repo.repoId}\u0000${worktreeId}`)
+  }
+
+  function appendWorktreeRow(
+    repo: UnifiedProjectGroup,
+    row: UnifiedWorktreeRow
+  ): UnifiedWorktreeRow {
+    repo.worktrees.push(row)
+    worktreeRows.set(`${repo.repoId}\u0000${row.worktreeId}`, row)
+    return row
   }
 
   // ── Step 1: ingest snapshot worktrees as the local-truth foundation.
@@ -208,7 +219,7 @@ export function mergeSnapshotAndSessions(
           hasLocalSamples: true
         }
       })
-      repo.worktrees.push({
+      appendWorktreeRow(repo, {
         worktreeId: wt.worktreeId,
         worktreeName: wt.worktreeName,
         repoId: wt.repoId,
@@ -218,7 +229,8 @@ export function mergeSnapshotAndSessions(
         history: wt.history,
         hasLocalSamples: true,
         isRemote: isRepoRemote(wt.repoId),
-        sessions
+        sessions,
+        browsers: []
       })
     }
   }
@@ -276,9 +288,10 @@ export function mergeSnapshotAndSessions(
         history: [],
         hasLocalSamples: false,
         isRemote: repoIsRemote,
-        sessions: []
+        sessions: [],
+        browsers: []
       }
-      repo.worktrees.push(row)
+      appendWorktreeRow(repo, row)
     }
 
     row.sessions.push({
@@ -294,7 +307,41 @@ export function mergeSnapshotAndSessions(
     })
   }
 
-  // ── Step 3: per-repo aggregates. Remote children are identified by the
+  // ── Step 3: attach renderer browser workspaces to canonical repo rows.
+  // Why: browser-only workspaces have no memory/daemon source, while synthetic
+  // session buckets must never become browser owners.
+  const browsersByWorktree = getEligibleResourceBrowserRows({
+    canonicalWorktreeById: ctx.browserCanonicalWorktreeById,
+    browserTabsByWorktree: ctx.browserTabsByWorktree,
+    unifiedTabsByWorktree: ctx.unifiedTabsByWorktree
+  })
+  for (const [worktreeId, browsers] of browsersByWorktree) {
+    const canonical = ctx.browserCanonicalWorktreeById.get(worktreeId)
+    if (!canonical) {
+      continue
+    }
+    const repo = ensureRepo(canonical.repoId, canonical.repoName, canonical.isRemote)
+    let row = findWorktreeRow(repo, worktreeId)
+    if (!row) {
+      row = {
+        worktreeId,
+        worktreeName: canonical.worktreeName,
+        repoId: canonical.repoId,
+        repoName: canonical.repoName,
+        cpu: null,
+        memory: null,
+        history: [],
+        hasLocalSamples: false,
+        isRemote: canonical.isRemote,
+        sessions: [],
+        browsers: []
+      }
+      appendWorktreeRow(repo, row)
+    }
+    row.browsers = browsers
+  }
+
+  // ── Step 4: per-repo aggregates. Remote children are identified by the
   //   repo's connectionId, not by missing data — `!hasLocalSamples` would
   //   mislabel warm-reattached local PTYs. The aggregate still skips rows
   //   we can't sample (worktree.cpu === null) so the numbers stay honest.

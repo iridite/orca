@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   getResourceUsageAllWorktrees,
+  getResourceUsageBrowserTabsByWorktree,
   getResourceUsagePtyIdsByTabId,
   getResourceUsageRepos,
   getResourceUsageRuntimePaneTitlesByTabId,
   getResourceUsageTerminalLayoutsByTabId,
-  getResourceUsageTabsByWorktree
+  getResourceUsageTabsByWorktree,
+  getResourceUsageUnifiedTabsByWorktree
 } from './resource-usage-open-slices'
 import type { AppState } from '../../store'
 
@@ -54,6 +56,8 @@ describe('resource usage open slices', () => {
     const runtimePaneTitlesByTabId = {
       'tab-1': { 'tab-1:0': 'Working' }
     } as AppState['runtimePaneTitlesByTabId']
+    const browserTabsByWorktree = { 'wt-1': [] }
+    const unifiedTabsByWorktree = { 'wt-1': [] }
 
     const closedTabs = getResourceUsageTabsByWorktree({ tabsByWorktree }, false)
     const closedPtyIds = getResourceUsagePtyIdsByTabId({ ptyIdsByTabId }, false)
@@ -62,6 +66,8 @@ describe('resource usage open slices', () => {
       { runtimePaneTitlesByTabId },
       false
     )
+    const closedBrowsers = getResourceUsageBrowserTabsByWorktree({ browserTabsByWorktree }, false)
+    const closedUnified = getResourceUsageUnifiedTabsByWorktree({ unifiedTabsByWorktree }, false)
 
     expect(closedTabs).toBe(getResourceUsageTabsByWorktree({ tabsByWorktree: {} }, false))
     expect(closedTitles).toBe(
@@ -75,6 +81,14 @@ describe('resource usage open slices', () => {
     expect(closedPtyIds).toEqual({})
     expect(closedLayouts).toEqual({})
     expect(closedTitles).toEqual({})
+    expect(closedBrowsers).toEqual({})
+    expect(closedUnified).toEqual({})
+    expect(closedBrowsers).toBe(
+      getResourceUsageBrowserTabsByWorktree({ browserTabsByWorktree: {} }, false)
+    )
+    expect(closedUnified).toBe(
+      getResourceUsageUnifiedTabsByWorktree({ unifiedTabsByWorktree: {} }, false)
+    )
   })
 
   it('returns live slices while the popover is open', () => {
@@ -90,6 +104,8 @@ describe('resource usage open slices', () => {
     const runtimePaneTitlesByTabId = {
       'tab-1': { 'tab-1:0': 'Working' }
     } as AppState['runtimePaneTitlesByTabId']
+    const browserTabsByWorktree = { 'wt-1': [] }
+    const unifiedTabsByWorktree = { 'wt-1': [] }
 
     expect(getResourceUsageTabsByWorktree({ tabsByWorktree }, true)).toBe(tabsByWorktree)
     expect(getResourceUsagePtyIdsByTabId({ ptyIdsByTabId }, true)).toBe(ptyIdsByTabId)
@@ -98,6 +114,12 @@ describe('resource usage open slices', () => {
     )
     expect(getResourceUsageRuntimePaneTitlesByTabId({ runtimePaneTitlesByTabId }, true)).toBe(
       runtimePaneTitlesByTabId
+    )
+    expect(getResourceUsageBrowserTabsByWorktree({ browserTabsByWorktree }, true)).toBe(
+      browserTabsByWorktree
+    )
+    expect(getResourceUsageUnifiedTabsByWorktree({ unifiedTabsByWorktree }, true)).toBe(
+      unifiedTabsByWorktree
     )
   })
 

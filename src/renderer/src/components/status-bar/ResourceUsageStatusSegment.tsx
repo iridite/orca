@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  Globe,
   LoaderCircle,
   MemoryStick,
   RotateCw,
@@ -44,6 +45,7 @@ import { mergeSnapshotAndSessions, UNATTRIBUTED_REPO_ID } from './mergeSnapshotA
 import type {
   DaemonSession,
   Metric,
+  UnifiedBrowserRow,
   UnifiedProjectGroup,
   UnifiedSessionRow,
   UnifiedWorktreeRow
@@ -56,11 +58,13 @@ import {
 } from './resource-session-navigation'
 import {
   getResourceUsageAllWorktrees,
+  getResourceUsageBrowserTabsByWorktree,
   getResourceUsagePtyIdsByTabId,
   getResourceUsageRepos,
   getResourceUsageRuntimePaneTitlesByTabId,
   getResourceUsageTerminalLayoutsByTabId,
-  getResourceUsageTabsByWorktree
+  getResourceUsageTabsByWorktree,
+  getResourceUsageUnifiedTabsByWorktree
 } from './resource-usage-open-slices'
 import {
   resolveResourceUsageSpaceScanReady,
@@ -69,17 +73,25 @@ import {
 import {
   getResourceManagerAriaLabel,
   getResourceManagerTooltipLines
-} from './resource-manager-terminal-copy'
+} from './resource-manager-copy'
 import {
   buildResourceSessionBindingIndex,
   countUnboundDaemonSessions,
   type ResourceSessionBindingInputs
 } from './resource-session-bindings'
 import { createClosedResourceSessionCountSelector } from './resource-session-count-selector'
+import { createClosedResourceBrowserCountSelector } from './resource-browser-count-selector'
+import { buildResourceBrowserCanonicalWorktreeMap } from './resource-browser-eligibility'
+import {
+  activateResourceBrowser,
+  closeResourceBrowser,
+  type ResourceBrowserTarget
+} from './resource-browser-actions'
 import { translate } from '@/i18n/i18n'
 
 const POLL_MS = 2_000
 const selectClosedResourceSessionCount = createClosedResourceSessionCountSelector()
+const selectClosedResourceBrowserCount = createClosedResourceBrowserCountSelector()
 
 type SortOption = 'memory' | 'cpu' | 'name'
 
@@ -438,6 +450,55 @@ export function SessionRow({
   )
 }
 
+export function BrowserRow({
+  browser,
+  worktreeId,
+  onActivate,
+  onClose
+}: {
+  browser: UnifiedBrowserRow
+  worktreeId: string
+  onActivate: (target: ResourceBrowserTarget) => void
+  onClose: (target: ResourceBrowserTarget) => void
+}): React.JSX.Element {
+  const target: ResourceBrowserTarget = {
+    worktreeId,
+    workspaceId: browser.workspaceId,
+    unifiedTabId: browser.unifiedTabId
+  }
+  return (
+    <div className="group/browserrow flex items-center pl-9 pr-3 py-0.5 hover:bg-accent/40">
+      <button
+        type="button"
+        onClick={() => onActivate(target)}
+        className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1 text-left text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={translate('resourceManager.openBrowser', 'Open browser {{value0}}', {
+          value0: browser.label
+        })}
+      >
+        <Globe className="size-3 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-[11px]">{browser.label}</span>
+        <span className={cn(METRIC_COLUMNS_CLS, 'text-[11px]')} aria-hidden>
+          <span className={CPU_COLUMN_CLS} />
+          <span className={MEM_COLUMN_CLS} />
+        </span>
+      </button>
+      <span className={ROW_TRAILING_GUTTER_CLS}>
+        <button
+          type="button"
+          onClick={() => onClose(target)}
+          className="rounded p-0.5 text-muted-foreground outline-none transition-opacity hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring can-hover:opacity-0 group-hover/browserrow:opacity-100 group-focus-within/browserrow:opacity-100"
+          aria-label={translate('resourceManager.closeBrowser', 'Close browser {{value0}}', {
+            value0: browser.label
+          })}
+        >
+          <X className="size-3" />
+        </button>
+      </span>
+    </div>
+  )
+}
+
 // ─── Worktree row ───────────────────────────────────────────────────
 
 export function WorktreeRow({
@@ -449,7 +510,9 @@ export function WorktreeRow({
   onNavigate,
   onDelete,
   onKillSession,
-  navigateToTab
+  navigateToTab,
+  onActivateBrowser,
+  onCloseBrowser
 }: {
   worktree: UnifiedWorktreeRow
   storeRecord: Worktree | null
@@ -460,8 +523,10 @@ export function WorktreeRow({
   onDelete: () => void
   onKillSession: (session: UnifiedSessionRow) => void
   navigateToTab: (tabId: string, paneKey: string | null) => void
+  onActivateBrowser: (target: ResourceBrowserTarget) => void
+  onCloseBrowser: (target: ResourceBrowserTarget) => void
 }): React.JSX.Element {
-  const hasSessions = worktree.sessions.length > 0
+  const hasChildren = worktree.sessions.length > 0 || worktree.browsers.length > 0
   // Why: synthetic buckets (orphan/unattributed) have no sidebar target to
   // reveal. Real and SSH-resolved worktrees both qualify for navigation —
   // navigateToWorktree handles the no-store-record case internally by
@@ -481,7 +546,7 @@ export function WorktreeRow({
   return (
     <div className="border-b border-border/20 last:border-b-0">
       <div className="group/wtrow flex items-center ml-2 transition-colors hover:bg-muted/60">
-        {hasSessions ? (
+        {hasChildren ? (
           <button
             type="button"
             onClick={onToggle}
@@ -522,6 +587,12 @@ export function WorktreeRow({
           disabled={!isNavigable}
         >
           <span className="text-xs font-medium truncate">{rowLabel}</span>
+          {worktree.browsers.length > 0 ? (
+            <span className="flex shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-muted-foreground/70">
+              <Globe className="size-3" aria-hidden />
+              {worktree.browsers.length}
+            </span>
+          ) : null}
           {/* Why: chip is gated on the repo's SSH connectionId, not on
               missing data. Warm-reattached local PTYs used to land here
               with hasLocalSamples=false even though they're plainly
@@ -606,6 +677,16 @@ export function WorktreeRow({
             onKill={onKillSession}
           />
         ))}
+      {!isCollapsed &&
+        worktree.browsers.map((browser) => (
+          <BrowserRow
+            key={browser.workspaceId}
+            browser={browser}
+            worktreeId={worktree.worktreeId}
+            onActivate={onActivateBrowser}
+            onClose={onCloseBrowser}
+          />
+        ))}
     </div>
   )
 }
@@ -623,7 +704,9 @@ function ResourceTree({
   navigateToWorktree,
   navigateToTab,
   onDelete,
-  onKillSession
+  onKillSession,
+  onActivateBrowser,
+  onCloseBrowser
 }: {
   repos: UnifiedProjectGroup[]
   sortOption: SortOption
@@ -636,6 +719,8 @@ function ResourceTree({
   navigateToTab: (tabId: string, paneKey: string | null) => void
   onDelete: (worktreeId: string) => void
   onKillSession: (session: UnifiedSessionRow) => void
+  onActivateBrowser: (target: ResourceBrowserTarget) => void
+  onCloseBrowser: (target: ResourceBrowserTarget) => void
 }): React.JSX.Element {
   const worktreeById = useWorktreeMap()
 
@@ -661,6 +746,8 @@ function ResourceTree({
         onDelete={() => onDelete(wt.worktreeId)}
         onKillSession={onKillSession}
         navigateToTab={navigateToTab}
+        onActivateBrowser={onActivateBrowser}
+        onCloseBrowser={onCloseBrowser}
       />
     )
   }
@@ -742,6 +829,7 @@ export function ResourceUsageStatusSegment({
   const fetchSnapshot = useAppStore((s) => s.fetchMemorySnapshot)
   const workspaceSessionReady = useAppStore((s) => s.workspaceSessionReady)
   const closedSessionCount = useAppStore(selectClosedResourceSessionCount)
+  const closedBrowserCount = useAppStore(selectClosedResourceBrowserCount)
   const setActiveView = useAppStore((s) => s.setActiveView)
   const openModal = useAppStore((s) => s.openModal)
   const openSpacePage = useAppStore((s) => s.openSpacePage)
@@ -776,6 +864,8 @@ export function ResourceUsageStatusSegment({
   const repos = useAppStore((s) => getResourceUsageRepos(s, open))
   const allWorktrees = useAppStore((s) => getResourceUsageAllWorktrees(s, open))
   const tabsByWorktree = useAppStore((s) => getResourceUsageTabsByWorktree(s, open))
+  const browserTabsByWorktree = useAppStore((s) => getResourceUsageBrowserTabsByWorktree(s, open))
+  const unifiedTabsByWorktree = useAppStore((s) => getResourceUsageUnifiedTabsByWorktree(s, open))
   // Why: the closed trigger owns a scalar selector. Full binding maps stay
   // behind open sentinels so unchanged counts do not rerender the segment.
   const ptyIdsByTabId = useAppStore((s) => getResourceUsagePtyIdsByTabId(s, open))
@@ -921,6 +1011,11 @@ export function ResourceUsageStatusSegment({
     return map
   }, [repos])
 
+  const browserCanonicalWorktreeById = useMemo(
+    () => buildResourceBrowserCanonicalWorktreeMap(repos, allWorktrees),
+    [repos, allWorktrees]
+  )
+
   const repoById = useMemo(() => new Map(repos.map((repo) => [repo.id, repo])), [repos])
 
   const oldWorkspaceCount = useMemo(() => {
@@ -954,7 +1049,10 @@ export function ResourceUsageStatusSegment({
             workspaceSessionReady,
             repoDisplayNameById,
             repoConnectionIdById,
-            repoRuntimeScopedById
+            repoRuntimeScopedById,
+            browserCanonicalWorktreeById,
+            browserTabsByWorktree,
+            unifiedTabsByWorktree
           })
         : [],
     [
@@ -968,7 +1066,10 @@ export function ResourceUsageStatusSegment({
       workspaceSessionReady,
       repoDisplayNameById,
       repoConnectionIdById,
-      repoRuntimeScopedById
+      repoRuntimeScopedById,
+      browserCanonicalWorktreeById,
+      browserTabsByWorktree,
+      unifiedTabsByWorktree
     ]
   )
 
@@ -982,6 +1083,7 @@ export function ResourceUsageStatusSegment({
   }, [open, sessions, resourceSessionBindings, workspaceSessionReady])
 
   const triggerSessionCount = open ? sessions.length : closedSessionCount
+  const triggerBrowserCount = closedBrowserCount
 
   const { totalMemory, totalCpu, hostShare, memBadgeLabel } = useMemo(() => {
     const memory = resourceSnapshot?.totalMemory ?? 0
@@ -1008,10 +1110,12 @@ export function ResourceUsageStatusSegment({
   const resourceManagerTooltipLines = getResourceManagerTooltipLines({
     memoryLabel: memBadgeLabel,
     sessionCount: triggerSessionCount,
+    browserCount: triggerBrowserCount,
     spaceScanReady
   })
   const resourceManagerAriaLabel = getResourceManagerAriaLabel({
     sessionCount: triggerSessionCount,
+    browserCount: triggerBrowserCount,
     spaceScanReady
   })
 
@@ -1061,6 +1165,14 @@ export function ResourceUsageStatusSegment({
     },
     [tabsByWorktree, setActiveView]
   )
+
+  const navigateToBrowser = useCallback((target: ResourceBrowserTarget): void => {
+    activateResourceBrowser(target, setOpen)
+  }, [])
+
+  const handleCloseBrowser = useCallback((target: ResourceBrowserTarget): void => {
+    closeResourceBrowser(target)
+  }, [])
 
   const deleteWorktree = useCallback((worktreeId: string): void => {
     setOpen(false)
@@ -1201,12 +1313,24 @@ export function ResourceUsageStatusSegment({
                       <span className="text-yellow-500 ml-0.5">({orphanCount})</span>
                     )}
                   </span>
+                  <span className="text-muted-foreground/50">·</span>
+                  <Globe className="size-3 text-muted-foreground" />
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                    {triggerBrowserCount}
+                  </span>
                 </>
               )}
-              {iconOnly && triggerSessionCount > 0 && (
-                <span className="text-[11px] tabular-nums text-muted-foreground">
-                  {triggerSessionCount}
-                </span>
+              {iconOnly && (triggerSessionCount > 0 || triggerBrowserCount > 0) && (
+                <>
+                  <Terminal className="size-3 text-muted-foreground" />
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                    {triggerSessionCount}
+                  </span>
+                  <Globe className="size-3 text-muted-foreground" />
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                    {triggerBrowserCount}
+                  </span>
+                </>
               )}
               {daemonUnreachable && (
                 <AlertTriangle
@@ -1225,7 +1349,7 @@ export function ResourceUsageStatusSegment({
             {resourceManagerTooltipLines.map((line, index) => (
               <div
                 key={`${index}:${line}`}
-                className={line === 'Space scan ready' ? 'text-primary' : ''}
+                className={spaceScanReady && index === 1 ? 'text-primary' : ''}
               >
                 {line}
               </div>
@@ -1252,10 +1376,7 @@ export function ResourceUsageStatusSegment({
           <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-foreground">
             <MemoryStick className="size-3 shrink-0 text-muted-foreground" />
             <span className="truncate">
-              {translate(
-                'auto.components.status.bar.ResourceUsageStatusSegment.6d9793d4bc',
-                'Resource Manager - Terminals'
-              )}
+              {translate('resourceManager.name', 'Resource Manager')}
             </span>
           </div>
 
@@ -1517,6 +1638,8 @@ export function ResourceUsageStatusSegment({
                 navigateToTab={navigateToTab}
                 onDelete={deleteWorktree}
                 onKillSession={handleKillSession}
+                onActivateBrowser={navigateToBrowser}
+                onCloseBrowser={handleCloseBrowser}
               />
             )}
 

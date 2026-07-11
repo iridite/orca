@@ -51,6 +51,9 @@ const baseCtx = (overrides: Partial<MergeContext> = {}): MergeContext => ({
   repoDisplayNameById: new Map(),
   repoConnectionIdById: new Map(),
   repoRuntimeScopedById: new Map(),
+  browserCanonicalWorktreeById: new Map(),
+  browserTabsByWorktree: {},
+  unifiedTabsByWorktree: {},
   ...overrides
 })
 

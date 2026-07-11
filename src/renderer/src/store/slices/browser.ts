@@ -131,6 +131,11 @@ export type BrowserSlice = {
   ) => BrowserWorkspace
   openNewBrowserTabInActiveWorkspace: (groupId: string) => Promise<void>
   closeBrowserTab: (tabId: string) => void
+  pruneRemoteBrowserTabMirror: (
+    worktreeId: string,
+    workspaceId: string,
+    unifiedTabId: string
+  ) => boolean
   shutdownWorktreeBrowsers: (worktreeId: string) => Promise<void>
   reopenClosedBrowserTab: (worktreeId: string) => BrowserWorkspace | null
   setActiveBrowserTab: (tabId: string) => void
@@ -775,6 +780,85 @@ export const createBrowserSlice: StateCreator<AppState, [], [], BrowserSlice> = 
         get().closeUnifiedTab(workspaceItem.id)
       }
     }
+  },
+
+  pruneRemoteBrowserTabMirror: (worktreeId, workspaceId, unifiedTabId) => {
+    const state = get()
+    const workspace = (state.browserTabsByWorktree[worktreeId] ?? []).find(
+      (candidate) => candidate.id === workspaceId && candidate.worktreeId === worktreeId
+    )
+    const unifiedTab = (state.unifiedTabsByWorktree[worktreeId] ?? []).find(
+      (candidate) =>
+        candidate.id === unifiedTabId &&
+        candidate.entityId === workspaceId &&
+        candidate.contentType === 'browser'
+    )
+    if (!workspace || !unifiedTab) {
+      return false
+    }
+
+    set((current) => {
+      const pages = current.browserPagesByWorkspace[workspaceId] ?? []
+      const nextBrowserTabsByWorktree = { ...current.browserTabsByWorktree }
+      const remaining = (nextBrowserTabsByWorktree[worktreeId] ?? []).filter(
+        (candidate) => candidate.id !== workspaceId
+      )
+      if (remaining.length > 0) {
+        nextBrowserTabsByWorktree[worktreeId] = remaining
+      } else {
+        delete nextBrowserTabsByWorktree[worktreeId]
+      }
+      const nextBrowserPagesByWorkspace = { ...current.browserPagesByWorkspace }
+      delete nextBrowserPagesByWorkspace[workspaceId]
+      const nextRemoteHandles = { ...current.remoteBrowserPageHandlesByPageId }
+      const nextAnnotations = { ...current.browserAnnotationsByPageId }
+      for (const page of pages) {
+        delete nextRemoteHandles[page.id]
+        delete nextAnnotations[page.id]
+      }
+      const nextActiveByWorktree = { ...current.activeBrowserTabIdByWorktree }
+      if (nextActiveByWorktree[worktreeId] === workspaceId) {
+        nextActiveByWorktree[worktreeId] = remaining[0]?.id ?? null
+      }
+      const nextRecentlyClosedPages = { ...current.recentlyClosedBrowserPagesByWorkspace }
+      delete nextRecentlyClosedPages[workspaceId]
+      const closedPageIds = new Set(pages.map((page) => page.id))
+      const nextPendingPageFocus = Object.fromEntries(
+        Object.entries(current.pendingAddressBarFocusByPageId).filter(
+          ([pageId]) => !closedPageIds.has(pageId)
+        )
+      )
+      const nextPendingTabFocus = Object.fromEntries(
+        Object.entries(current.pendingAddressBarFocusByTabId).filter(
+          ([focusId]) => focusId !== workspaceId && !closedPageIds.has(focusId)
+        )
+      )
+      return {
+        browserTabsByWorktree: nextBrowserTabsByWorktree,
+        browserPagesByWorkspace: nextBrowserPagesByWorkspace,
+        remoteBrowserPageHandlesByPageId: nextRemoteHandles,
+        browserAnnotationsByPageId: nextAnnotations,
+        activeBrowserTabIdByWorktree: nextActiveByWorktree,
+        activeBrowserTabId:
+          current.activeBrowserTabId === workspaceId
+            ? (remaining[0]?.id ?? null)
+            : current.activeBrowserTabId,
+        tabBarOrderByWorktree: {
+          ...current.tabBarOrderByWorktree,
+          [worktreeId]: (current.tabBarOrderByWorktree[worktreeId] ?? []).filter(
+            (entryId) => entryId !== workspaceId && entryId !== unifiedTabId
+          )
+        },
+        recentlyClosedBrowserPagesByWorkspace: nextRecentlyClosedPages,
+        pendingAddressBarFocusByPageId: nextPendingPageFocus,
+        pendingAddressBarFocusByTabId: nextPendingTabFocus
+      }
+    })
+
+    // Why: remote mirrors are host-authoritative. Closing locally must not add
+    // recently-closed history or emit per-page browser.tabClose RPCs.
+    get().closeUnifiedTab(unifiedTabId)
+    return true
   },
 
   shutdownWorktreeBrowsers: async (worktreeId) => {
